@@ -1,8 +1,5 @@
 from rest_framework import serializers
 from .models import UploadedFile
-from PIL import Image
-import imghdr
-import os
 
 class UploadedFileSerializer(serializers.ModelSerializer):
     class Meta:
@@ -35,18 +32,6 @@ class DocxUploadSerializer(serializers.Serializer):
         if value.name.split('.')[-1].lower() not in valid_extensions:
             raise serializers.ValidationError("Only .doc, .docx, .odt files are allowed.")
         return value
-    
-    
-class ZipUploadSerializer(serializers.Serializer):
-    file = serializers.FileField()
-
-    def validate_file(self, value):
-        valid_extensions = ['zip']
-        if value.name.split('.')[-1].lower() not in valid_extensions:
-            raise serializers.ValidationError("Only ZIP files are allowed.")
-        return value
-
-
 class VideoUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
 
