@@ -73,7 +73,7 @@ class PdfCompressView(BaseCompressView):
             compressed_pdf_path = self.save_file(output_pdf.getvalue(), f'compressed_pdf_{uploaded_pdf.name}')
             base_url = request.build_absolute_uri('/').rstrip('/')
             full_pdf_url = base_url + compressed_pdf_path
-            return Response({'compressed_image': full_pdf_url}, status=status.HTTP_200_OK)
+            return Response({'compressed_pdf': full_pdf_url}, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -120,7 +120,7 @@ class DocxCompressView(BaseCompressView):
             os.remove(temp_docx_path)  # Clean up temporary file
             base_url = request.build_absolute_uri('/').rstrip('/')
             full_docx_url = base_url + compressed_docx_path
-            return Response({'compressed_image': full_docx_url}, status=status.HTTP_200_OK)
+            return Response({'compressed_docx': full_docx_url}, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
