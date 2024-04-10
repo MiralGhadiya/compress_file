@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'compressapp',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
@@ -49,6 +50,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = 'project.urls'
@@ -117,7 +119,15 @@ USE_I18N = True
 
 USE_TZ = True
 
-
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:9000",
+    "http://127.0.0.1:9000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "https://compress.pythonanywhere.com/"
+]
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
