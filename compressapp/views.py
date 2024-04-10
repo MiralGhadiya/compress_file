@@ -51,7 +51,9 @@ class ImageCompressView(BaseCompressView):
             uploaded_image = serializer.validated_data['file']
             compressed_image_data = self.compress_image(uploaded_image)
             compressed_image_path = self.save_file(compressed_image_data, f'compressed_image_{uploaded_image.name}')
-            return Response({'compressed_image': compressed_image_path}, status=status.HTTP_200_OK)
+            base_url = request.build_absolute_uri('/').rstrip('/')
+            full_image_url = base_url + compressed_image_path
+            return Response({'compressed_image': full_image_url}, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
@@ -69,7 +71,9 @@ class PdfCompressView(BaseCompressView):
                 output_pdf_writer.add_page(page)
             output_pdf_writer.write(output_pdf)
             compressed_pdf_path = self.save_file(output_pdf.getvalue(), f'compressed_pdf_{uploaded_pdf.name}')
-            return Response({'compressed_pdf': compressed_pdf_path}, status=status.HTTP_200_OK)
+            base_url = request.build_absolute_uri('/').rstrip('/')
+            full_pdf_url = base_url + compressed_pdf_path
+            return Response({'compressed_image': full_pdf_url}, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -114,9 +118,9 @@ class DocxCompressView(BaseCompressView):
             # Compress the converted DOCX file
             compressed_docx_path = self.save_file(open(temp_docx_path, 'rb').read(), f'compressed_docx_{uploaded_docx.name}')
             os.remove(temp_docx_path)  # Clean up temporary file
-
-            # Return the path of the compressed DOCX file in the response
-            return Response({'compressed_docx': compressed_docx_path}, status=status.HTTP_200_OK)
+            base_url = request.build_absolute_uri('/').rstrip('/')
+            full_docx_url = base_url + compressed_docx_path
+            return Response({'compressed_image': full_docx_url}, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
@@ -136,7 +140,12 @@ class VideoCompressView(BaseCompressView):
             output_filepath = os.path.join(settings.MEDIA_ROOT, output_filename)
             try:
                 self.compress_video(input_filepath, output_filepath)
-                return Response({'compressed_video': os.path.join(settings.MEDIA_URL, output_filename)}, status=status.HTTP_200_OK)
+                
+                # Dynamically generate the full video URL
+                base_url = request.build_absolute_uri('/').rstrip('/')
+                full_video_url = base_url + settings.MEDIA_URL + output_filename
+                
+                return Response({'compressed_video': full_video_url}, status=status.HTTP_200_OK)
             except ffmpeg.Error as e:
                 return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             finally:
