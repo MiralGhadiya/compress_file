@@ -119,15 +119,9 @@ USE_I18N = True
 
 USE_TZ = True
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:9000",
-    "http://127.0.0.1:9000",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
-
-]
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = ['http://localhost:3000',"http://127.0.0.1:3000",'http://localhost:3001',"http://127.0.0.1:3001"]
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
