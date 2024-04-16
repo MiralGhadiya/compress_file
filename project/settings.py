@@ -121,7 +121,7 @@ USE_TZ = True
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = ['http://localhost:3000',"http://127.0.0.1:3000",'http://localhost:3001',"http://127.0.0.1:3001"]
+CORS_ALLOWED_ORIGINS = ['http://localhost:3000',"http://127.0.0.1:3000",'http://localhost:3001',"http://127.0.0.1:3001","https://files-compressor-dwfhvfs29-jaypagadas-projects.vercel.app"]
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
