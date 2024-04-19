@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import UploadedFile
 from docx import Document
-import win32com.client as win32
+# import win32com.client as win32
 
 from subprocess import run
 
