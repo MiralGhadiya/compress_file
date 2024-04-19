@@ -36,7 +36,7 @@ class VideoUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
 
     def validate_file(self, value):
-        valid_extensions = ['mp4', 'avi', 'mov', 'mkv', 'wmv']
+        valid_extensions = ['mp4', 'mov', 'mkv', 'wmv', 'flv']
         if value.name.split('.')[-1].lower() not in valid_extensions:
-            raise serializers.ValidationError("Only MP4, AVI, MOV, MKV, WMV files are allowed.")
+            raise serializers.ValidationError("Only MP4, MOV, MKV, WMV, FLV files are allowed.")
         return value
