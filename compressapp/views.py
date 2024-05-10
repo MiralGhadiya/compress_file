@@ -27,55 +27,33 @@ class BaseCompressView(APIView):
         return os.path.join(settings.MEDIA_URL, filename)
 class ImageCompressView(BaseCompressView):
     def compress_image(self, uploaded_image):
-        image = Image.open(uploaded_image)
-        # Convert GIF to PNG while preserving transparency
-        if image.format == 'GIF':
-            png_image = Image.new("RGBA", image.size, (255, 255, 255, 0))
-            png_image.paste(image, (0, 0), image.convert('RGBA'))
-            output = io.BytesIO()
-            png_image.save(output, format='PNG')
-            output.seek(0)
-            return output.getvalue()
-
-        if image.format == 'ICO':
-            max_size = (32, 32)
+        with Image.open(uploaded_image) as image:
+            max_size = (800, 800)
             image.thumbnail(max_size, Image.LANCZOS)
-            output = io.BytesIO()
-            image.save(output, format='ICO')
-            output.seek(0)
-            return output.getvalue()
-        else:
-            if image.mode in ['RGBA', 'LA']:
-                background = Image.new("RGB", image.size, (255, 255, 255))
+            if image.mode == 'RGBA':
+                background = Image.new("RGBA", image.size, (255, 255, 255, 0))
                 background.paste(image, (0, 0), image)
-                # background.paste(image, mask=image.split()[3])
                 image = background
-
-            max_size = (800, 800) 
-            image.thumbnail(max_size, Image.LANCZOS)      
-            # Convert RGBA to RGB if necessary
-            if image.mode in ['RGBA', 'P']:
+            if image.mode not in ['RGB', 'RGBA']:
                 image = image.convert('RGB')
-            # Compress the image with varying quality to reduce file size
-            for quality in range(95, 0, -5):
-                output = io.BytesIO()
-                image.save(output, format='JPEG', quality=quality)
-                compressed_data = output.getvalue()
-                
-                if len(compressed_data) < uploaded_image.size:
-                    return compressed_data 
-            else:
-                return uploaded_image.read()
+
+            output = io.BytesIO()
+            format = 'PNG' if image.mode == 'RGBA' else 'JPEG'
+            image.save(output, format=format, quality=85)
+            return output.getvalue()
+
     def post(self, request, format=None):
         serializer = ImageUploadSerializer(data=request.data)
         if serializer.is_valid():
             uploaded_image = serializer.validated_data['file']
             file_name = uploaded_image.name
             file_type = uploaded_image.content_type
+
             compressed_image_data = self.compress_image(uploaded_image)
             compressed_image_path = self.save_file(compressed_image_data, f'compressed_image_{uploaded_image.name}')
             base_url = request.build_absolute_uri('/').rstrip('/') 
             full_image_url = base_url + compressed_image_path
+            # Return response with compressed PDF URL, file name, and file type
             return Response({
                 'compressed_image': full_image_url,
                 'file_name': file_name,
@@ -83,6 +61,7 @@ class ImageCompressView(BaseCompressView):
             }, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
 class PdfCompressView(BaseCompressView):
     def compress_pdf(self, input_path, output_path):
         system = platform.system()
@@ -93,6 +72,7 @@ class PdfCompressView(BaseCompressView):
         command = [gs_cmd, '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4', '-dPDFSETTINGS=/screen',
                    '-dNOPAUSE', '-dQUIET', '-dBATCH', f'-sOutputFile={output_path}', input_path]
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        print(result,"1.*"*10)
         if result.returncode != 0:
             error_msg = result.stderr.decode('utf-8')
             raise Exception(f'Error compressing PDF: {error_msg}')
@@ -101,24 +81,33 @@ class PdfCompressView(BaseCompressView):
         serializer = PdfUploadSerializer(data=request.data)
         if serializer.is_valid():
             uploaded_file = serializer.validated_data['file']
+            print(uploaded_file,"2.*"*10)
             file_name = uploaded_file.name
             file_type = uploaded_file.content_type
             with tempfile.NamedTemporaryFile(delete=False) as temp_pdf:
                 for chunk in uploaded_file.chunks():
                     temp_pdf.write(chunk)
                 input_filepath = temp_pdf.name
+                print(input_filepath,"3.*"*10)
             output_filename = f'compressed_pdf{uploaded_file.name.replace(" ", "_")}'
+            print(output_filename,"4.*"*10)
             output_filepath = os.path.join(settings.MEDIA_ROOT, output_filename)
+            # compressed_pdf_path = self.save_file(compressed_pdf.getvalue(), compressed_pdf_name)
+            print(output_filepath,"5.*"*10)
             try:
                 self.compress_pdf(input_filepath, output_filepath)
                 original_size = os.path.getsize(input_filepath)
+                print(original_size,"6.*"*10)
                 compressed_size = os.path.getsize(output_filepath)
+                print(compressed_size,"7.*"*10)
                 if compressed_size >= original_size:
                     # If the compressed file size is not smaller, delete the compressed file
                     os.remove(output_filepath)
                     return Response({'error': "Compression did not reduce file size."}, status=status.HTTP_400_BAD_REQUEST)
                 base_url = request.build_absolute_uri('/').rstrip('/')
+                print(base_url,"8.*"*10)
                 full_pdf_url = base_url + settings.MEDIA_URL + output_filename
+                print(full_pdf_url,"9.*"*10)
 
                 return Response({'compressed_pdf': full_pdf_url, "file_name": file_name, "file_type": file_type}, status=status.HTTP_200_OK)
             except Exception as e:
