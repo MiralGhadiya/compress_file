@@ -5,8 +5,6 @@ from docx import Document
 from subprocess import run
 from .serializers import ImageUploadSerializer,PdfUploadSerializer,DocxUploadSerializer,VideoUploadSerializer
 from PIL import Image
-from PyPDF2 import PdfWriter, PdfReader
-from docx2pdf import convert
 import os
 from docx import Document
 from docx2txt import process as extract_text
@@ -14,11 +12,10 @@ import zipfile
 import ffmpeg 
 import io
 import platform
-import tempfile
+import tempfile 
 import subprocess
 from django.conf import settings
 from django.utils.text import slugify
-import fitz 
 
 class BaseCompressView(APIView):
     def save_file(self, file_data, filename):
@@ -31,7 +28,6 @@ class BaseCompressView(APIView):
 class ImageCompressView(BaseCompressView):
     def compress_image(self, uploaded_image):
         image = Image.open(uploaded_image)
-        
         # Convert GIF to PNG while preserving transparency
         if image.format == 'GIF':
             png_image = Image.new("RGBA", image.size, (255, 255, 255, 0))
@@ -51,16 +47,15 @@ class ImageCompressView(BaseCompressView):
         else:
             if image.mode in ['RGBA', 'LA']:
                 background = Image.new("RGB", image.size, (255, 255, 255))
-                background.paste(image, mask=image.split()[3])
+                background.paste(image, (0, 0), image)
+                # background.paste(image, mask=image.split()[3])
                 image = background
 
             max_size = (800, 800) 
-            image.thumbnail(max_size, Image.LANCZOS)
-            
+            image.thumbnail(max_size, Image.LANCZOS)      
             # Convert RGBA to RGB if necessary
             if image.mode in ['RGBA', 'P']:
                 image = image.convert('RGB')
-            
             # Compress the image with varying quality to reduce file size
             for quality in range(95, 0, -5):
                 output = io.BytesIO()
@@ -71,19 +66,16 @@ class ImageCompressView(BaseCompressView):
                     return compressed_data 
             else:
                 return uploaded_image.read()
-
     def post(self, request, format=None):
         serializer = ImageUploadSerializer(data=request.data)
         if serializer.is_valid():
             uploaded_image = serializer.validated_data['file']
             file_name = uploaded_image.name
             file_type = uploaded_image.content_type
-
             compressed_image_data = self.compress_image(uploaded_image)
             compressed_image_path = self.save_file(compressed_image_data, f'compressed_image_{uploaded_image.name}')
             base_url = request.build_absolute_uri('/').rstrip('/') 
             full_image_url = base_url + compressed_image_path
-                        # Return response with compressed PDF URL, file name, and file type
             return Response({
                 'compressed_image': full_image_url,
                 'file_name': file_name,
@@ -92,45 +84,50 @@ class ImageCompressView(BaseCompressView):
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 class PdfCompressView(BaseCompressView):
+    def compress_pdf(self, input_path, output_path):
+        system = platform.system()
+        if system == 'Windows':
+            gs_cmd = "C:\\Program Files\\gs\\gs10.03.0\\bin\\gswin64c.exe"  
+        else:
+            gs_cmd = 'gs'
+        command = [gs_cmd, '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4', '-dPDFSETTINGS=/screen',
+                   '-dNOPAUSE', '-dQUIET', '-dBATCH', f'-sOutputFile={output_path}', input_path]
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        if result.returncode != 0:
+            error_msg = result.stderr.decode('utf-8')
+            raise Exception(f'Error compressing PDF: {error_msg}')
+
     def post(self, request, format=None):
         serializer = PdfUploadSerializer(data=request.data)
         if serializer.is_valid():
-            uploaded_pdf = serializer.validated_data['file']
-            file_name = uploaded_pdf.name
-            file_type = uploaded_pdf.content_type
+            uploaded_file = serializer.validated_data['file']
+            file_name = uploaded_file.name
+            file_type = uploaded_file.content_type
+            with tempfile.NamedTemporaryFile(delete=False) as temp_pdf:
+                for chunk in uploaded_file.chunks():
+                    temp_pdf.write(chunk)
+                input_filepath = temp_pdf.name
+            output_filename = f'compressed_pdf{uploaded_file.name.replace(" ", "_")}'
+            output_filepath = os.path.join(settings.MEDIA_ROOT, output_filename)
+            try:
+                self.compress_pdf(input_filepath, output_filepath)
+                original_size = os.path.getsize(input_filepath)
+                compressed_size = os.path.getsize(output_filepath)
+                if compressed_size >= original_size:
+                    # If the compressed file size is not smaller, delete the compressed file
+                    os.remove(output_filepath)
+                    return Response({'error': "Compression did not reduce file size."}, status=status.HTTP_400_BAD_REQUEST)
+                base_url = request.build_absolute_uri('/').rstrip('/')
+                full_pdf_url = base_url + settings.MEDIA_URL + output_filename
 
-            output_pdf = io.BytesIO()
-            pdf_reader = PdfReader(uploaded_pdf)
-            pdf_writer = PdfWriter()
-
-            for page_num in range(len(pdf_reader.pages)):
-                page = pdf_reader.pages[page_num] 
-                pdf_writer.add_page(page)
-
-            pdf_writer.write(output_pdf)
-            output_pdf.seek(0)
-
-            # Compress PDF using PyMuPDF (fitz)
-            compressed_pdf = io.BytesIO()
-            pdf_document = fitz.open("pdf", output_pdf.getvalue())
-            pdf_document.save(compressed_pdf, garbage=4, deflate=True)
-            pdf_document.close()
-
-            compressed_pdf.seek(0)
-            compressed_pdf_name = f'compressed_pdf_{uploaded_pdf.name}'
-            compressed_pdf_path = self.save_file(compressed_pdf.getvalue(), compressed_pdf_name)
-
-            base_url = request.build_absolute_uri('/').rstrip('/') 
-            full_pdf_url = base_url + compressed_pdf_path
-            
-            # Return response with compressed PDF URL, file name, and file type
-            return Response({
-                'compressed_pdf': full_pdf_url,
-                'file_name': file_name,
-                'file_type': file_type,
-            }, status=status.HTTP_200_OK)
+                return Response({'compressed_pdf': full_pdf_url, "file_name": file_name, "file_type": file_type}, status=status.HTTP_200_OK)
+            except Exception as e:
+                return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            finally:
+                os.unlink(input_filepath)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 class DocxCompressView(BaseCompressView):
     def convert_docx_to_pdf(self, docx_path):
         platform_system = platform.system()
@@ -163,7 +160,6 @@ class DocxCompressView(BaseCompressView):
         except Exception as e:
             raise Exception(f"Error compressing ODT: {e}")
         
-
     def compress_doc(self, doc_path):
         try:
             with zipfile.ZipFile(doc_path, 'r') as doc_zip:
@@ -188,7 +184,6 @@ class DocxCompressView(BaseCompressView):
                 for chunk in uploaded_file.chunks():
                     temp_file.write(chunk)
 
-            # Convert DOCX to PDF
             if file_extension == '.docx':
                 try:
                     self.convert_docx_to_pdf(temp_file_path)
@@ -243,7 +238,6 @@ class VideoCompressView(BaseCompressView):
             output_filepath = os.path.join(settings.MEDIA_ROOT, output_filename)
             try:
                 self.compress_video(input_filepath, output_filepath)
-                
                 # Check if compressed file size is smaller than original file size
                 original_size = os.path.getsize(input_filepath)
                 compressed_size = os.path.getsize(output_filepath)
