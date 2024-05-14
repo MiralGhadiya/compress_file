@@ -64,7 +64,7 @@ class ImageCompressView(BaseCompressView):
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-
+from django.http import JsonResponse
 logger = logging.getLogger(__name__)
 class PdfCompressView(BaseCompressView):
     def compress_pdf(self, input_path, output_path):
@@ -118,8 +118,9 @@ class PdfCompressView(BaseCompressView):
 
                 return Response({'compressed_pdf': full_pdf_url, "file_name": file_name, "file_type": file_type}, status=status.HTTP_200_OK)
             except Exception as e:
-                # return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                logger.exception("An error occurred during PDF compression.")
+                # logger.exception("An error occurred during PDF compression.")
+                return JsonResponse({'error': 'An error occurred during PDF compression.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
             finally:
                 os.unlink(input_filepath)
         else:
