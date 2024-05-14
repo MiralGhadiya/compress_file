@@ -144,10 +144,10 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 import os
 
-# Define your base directory
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Add a log directory in your base directory
+
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
@@ -157,17 +157,17 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'handlers': {
-        # File handler to write logs to a file
+      
         'file': {
-            'level': 'DEBUG',  # Set the logging level as required
+            'level': 'INFO', 
             'class': 'logging.FileHandler',
-            'filename': os.path.join(LOG_DIR, 'debug.log'),  # Path to your log file
+            'filename': os.path.join(LOG_DIR, 'debug.log'),  
         },
     },
     'loggers': {
         '': {
             'handlers': ['file'],
-            'level': 'DEBUG',  # Set the logging level as required
+            'level': 'INFO', 
             'propagate': True,
         },
     },
