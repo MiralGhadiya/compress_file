@@ -16,7 +16,8 @@ import tempfile
 import subprocess
 from django.conf import settings
 from django.utils.text import slugify
-# import logging
+import logging
+from django.shortcuts import render
 
 class BaseCompressView(APIView):
     def save_file(self, file_data, filename):
@@ -64,15 +65,7 @@ class ImageCompressView(BaseCompressView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
 
-# logging.basicConfig(level=logging.DEBUG,
-#                 format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# logger = logging.getLogger(__name__)  
-# logger.setLevel(logging.DEBUG)  
-# log_file = os.path.join(settings.BASE_DIR, 'django.log')
-# file_handler = logging.FileHandler(log_file)
-# file_handler.setLevel(logging.DEBUG)
-# file_handler.setFormatter(formatter)
-   
+logger = logging.getLogger(__name__)
 class PdfCompressView(BaseCompressView):
     def compress_pdf(self, input_path, output_path):
         system = platform.system()
@@ -82,7 +75,7 @@ class PdfCompressView(BaseCompressView):
             gs_cmd = 'gs'
         command = [gs_cmd, '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4', '-dPDFSETTINGS=/screen',
                    '-dNOPAUSE', '-dQUIET', '-dBATCH', f'-sOutputFile={output_path}', input_path]
-        logger.error(f"command: {command}")
+        # logger.error(f"command: {command}")
         print(command,"///////////////////////////////////////////////////////////////////////")
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         # logger.info(f"Ghostscript command executed with return code: {result.returncode}")
