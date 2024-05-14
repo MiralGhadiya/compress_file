@@ -16,7 +16,7 @@ import tempfile
 import subprocess
 from django.conf import settings
 from django.utils.text import slugify
-import logging
+# import logging
 
 class BaseCompressView(APIView):
     def save_file(self, file_data, filename):
@@ -62,9 +62,11 @@ class ImageCompressView(BaseCompressView):
             }, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)  
+        
+
+# logging.basicConfig(level=logging.DEBUG,
+#                 format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# logger = logging.getLogger(__name__)  
 # logger.setLevel(logging.DEBUG)  
 # log_file = os.path.join(settings.BASE_DIR, 'django.log')
 # file_handler = logging.FileHandler(log_file)
@@ -87,7 +89,7 @@ class PdfCompressView(BaseCompressView):
         if result.returncode != 0:
             error_msg = result.stderr.decode('utf-8')
             print(error_msg,"********************************************************************************")
-            logger.error(f"Error compressing PDF: {error_msg}")
+            # logger.error(f"Error compressing PDF: {error_msg}")
 
         # No need for the else block here
 
@@ -103,9 +105,9 @@ class PdfCompressView(BaseCompressView):
                 input_filepath = temp_pdf.name
 
             output_filename = f'compressed_pdf_{uploaded_file.name.replace(" ", "_")}' 
-            logger.error(f"Error compressing PDF: {output_filename}")
+            # logger.error(f"Error compressing PDF: {output_filename}")
             output_filepath = os.path.join(settings.MEDIA_ROOT, output_filename)
-            logger.error(f"Error compressing PDF: {output_filepath}")
+            # logger.error(f"Error compressing PDF: {output_filepath}")
 
             try:
                 self.compress_pdf(input_filepath, output_filepath)
@@ -123,8 +125,8 @@ class PdfCompressView(BaseCompressView):
 
                 return Response({'compressed_pdf': full_pdf_url, "file_name": file_name, "file_type": file_type}, status=status.HTTP_200_OK)
             except Exception as e:
-                # return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                logger.exception("An error occurred during PDF compression.")
+                return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                # logger.exception("An error occurred during PDF compression.")
             finally:
                 os.unlink(input_filepath)
         else:
