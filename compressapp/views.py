@@ -66,11 +66,11 @@ class ImageCompressView(BaseCompressView):
 formatter=logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)  
-logger.setLevel(logging.DEBUG)  
-log_file = os.path.join(settings.BASE_DIR, 'django.log')
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(formatter)
+# logger.setLevel(logging.DEBUG)  
+# log_file = os.path.join(settings.BASE_DIR, 'django.log')
+# file_handler = logging.FileHandler(log_file)
+# file_handler.setLevel(logging.DEBUG)
+# file_handler.setFormatter(formatter)
    
 class PdfCompressView(BaseCompressView):
     def compress_pdf(self, input_path, output_path):
