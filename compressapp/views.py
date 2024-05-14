@@ -16,6 +16,7 @@ import tempfile
 import subprocess
 from django.conf import settings
 from django.utils.text import slugify
+import logging
 
 class BaseCompressView(APIView):
     def save_file(self, file_data, filename):
@@ -62,6 +63,15 @@ class ImageCompressView(BaseCompressView):
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
+formatter=logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)  
+logger.setLevel(logging.DEBUG)  
+log_file = os.path.join(settings.BASE_DIR, 'django.log')
+file_handler = logging.FileHandler(log_file)
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+   
 class PdfCompressView(BaseCompressView):
     def compress_pdf(self, input_path, output_path):
         system = platform.system()
@@ -71,51 +81,56 @@ class PdfCompressView(BaseCompressView):
             gs_cmd = 'gs'
         command = [gs_cmd, '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4', '-dPDFSETTINGS=/screen',
                    '-dNOPAUSE', '-dQUIET', '-dBATCH', f'-sOutputFile={output_path}', input_path]
+        logger.error(f"command: {command}")
+        print(command,"///////////////////////////////////////////////////////////////////////")
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        print(result,"1.*"*10)
+        # logger.info(f"Ghostscript command executed with return code: {result.returncode}")
         if result.returncode != 0:
             error_msg = result.stderr.decode('utf-8')
-            raise Exception(f'Error compressing PDF: {error_msg}')
+            print(error_msg,"********************************************************************************")
+            logger.error(f"Error compressing PDF: {error_msg}")
+
+        # No need for the else block here
 
     def post(self, request, format=None):
         serializer = PdfUploadSerializer(data=request.data)
         if serializer.is_valid():
             uploaded_file = serializer.validated_data['file']
-            print(uploaded_file,"2.*"*10)
             file_name = uploaded_file.name
             file_type = uploaded_file.content_type
             with tempfile.NamedTemporaryFile(delete=False) as temp_pdf:
                 for chunk in uploaded_file.chunks():
                     temp_pdf.write(chunk)
                 input_filepath = temp_pdf.name
-                print(input_filepath,"3.*"*10)
-            output_filename = f'compressed_pdf{uploaded_file.name.replace(" ", "_")}'
-            print(output_filename,"4.*"*10)
+
+            output_filename = f'compressed_pdf_{uploaded_file.name.replace(" ", "_")}' 
+            logger.error(f"Error compressing PDF: {output_filename}")
             output_filepath = os.path.join(settings.MEDIA_ROOT, output_filename)
-            # compressed_pdf_path = self.save_file(compressed_pdf.getvalue(), compressed_pdf_name)
-            print(output_filepath,"5.*"*10)
+            logger.error(f"Error compressing PDF: {output_filepath}")
+
             try:
                 self.compress_pdf(input_filepath, output_filepath)
                 original_size = os.path.getsize(input_filepath)
-                print(original_size,"6.*"*10)
                 compressed_size = os.path.getsize(output_filepath)
-                print(compressed_size,"7.*"*10)
                 if compressed_size >= original_size:
-                    # If the compressed file size is not smaller, delete the compressed file
                     os.remove(output_filepath)
                     return Response({'error': "Compression did not reduce file size."}, status=status.HTTP_400_BAD_REQUEST)
                 base_url = request.build_absolute_uri('/').rstrip('/')
-                print(base_url,"8.*"*10)
+                print(base_url,"7888888888888888888888888888888888888888888888888888888888888888888888888888888888888888")
+                # logger.error(f"Error compressing PDF: {base_url}")
                 full_pdf_url = base_url + settings.MEDIA_URL + output_filename
-                print(full_pdf_url,"9.*"*10)
+                # logger.error(f"Error compressing PDF: {full_pdf_url}")
+                print(full_pdf_url,"9899999999999999999999999999999999999999999999999999999999999999999999999999999")
 
                 return Response({'compressed_pdf': full_pdf_url, "file_name": file_name, "file_type": file_type}, status=status.HTTP_200_OK)
             except Exception as e:
-                return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                # return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                logger.exception("An error occurred during PDF compression.")
             finally:
                 os.unlink(input_filepath)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class DocxCompressView(BaseCompressView):
     def convert_docx_to_pdf(self, docx_path):
