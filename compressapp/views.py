@@ -89,8 +89,7 @@ class PdfCompressView(BaseCompressView):
         serializer = PdfUploadSerializer(data=request.data)
         if serializer.is_valid():
             uploaded_file = serializer.validated_data['file']
-            import pdb
-            pdb.set_trace()
+
             file_name = uploaded_file.name
             file_type = uploaded_file.content_type
             with tempfile.NamedTemporaryFile(delete=False) as temp_pdf:
