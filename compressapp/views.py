@@ -62,8 +62,7 @@ class ImageCompressView(BaseCompressView):
             }, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-formatter=logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)  
 # logger.setLevel(logging.DEBUG)  
