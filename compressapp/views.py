@@ -75,14 +75,19 @@ class PdfCompressView(BaseCompressView):
             gs_cmd = "C:\\gs\\gs10.03.0\\bin\\gswin64c.exe"  
         else:
             gs_cmd = 'gs'
+            
         command = [gs_cmd, '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4', '-dPDFSETTINGS=/screen',
                    '-dNOPAUSE', '-dQUIET', '-dBATCH', f'-sOutputFile={output_path}', input_path]
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        logger.info(f"Ghostscript command executed with return code: {result.returncode}")
-        if result.returncode != 0:
-            error_msg = result.stderr.decode('utf-8')
-            logger.info(f"Error compressing PDF: {error_msg}")
-            raise Exception(f'Error compressing PDF: {error_msg}')
+        try:
+            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            logger.info(f"Ghostscript command executed with return code: {result.returncode}")
+            if result.returncode != 0:
+                error_msg = result.stderr.decode('utf-8')
+                logger.error(f"error_msg: {error_msg}")
+                raise Exception(f'Error compressing PDF: {error_msg}')
+        except Exception as e:
+            logger.exception(f'Error compressing PDF: {str(e)}')
+            raise e
 
 
     def post(self, request, format=None):
