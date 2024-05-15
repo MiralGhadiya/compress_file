@@ -83,7 +83,7 @@ class PdfCompressView(BaseCompressView):
             error_msg = result.stderr.decode('utf-8')
             logger.info(f"Error compressing PDF: {error_msg}")
             raise Exception(f'Error compressing PDF: {error_msg}')
-        # No need for the else block here
+
 
     def post(self, request, format=None):
         serializer = PdfUploadSerializer(data=request.data)
@@ -103,6 +103,7 @@ class PdfCompressView(BaseCompressView):
 
             try:
                 self.compress_pdf(input_filepath, output_filepath)
+                traceback.print_exc()
                 original_size = os.path.getsize(input_filepath)
                 compressed_size = os.path.getsize(output_filepath)
                 if compressed_size >= original_size:
