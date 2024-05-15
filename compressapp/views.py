@@ -98,7 +98,7 @@ class PdfCompressView(BaseCompressView):
 
             output_filename = f'compressed_pdf_{uploaded_file.name.replace(" ", "_")}' 
             logger.info(f"output_filename: {output_filename}")
-            output_filepath = os.path.join("https://compresstest.pythonanywhere.com", output_filename)
+            output_filepath = os.path.join("https://compresstest.pythonanywhere.com/media", output_filename)
             logger.info(f"output_filepath: {output_filepath}")
 
             try:
