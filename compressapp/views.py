@@ -98,7 +98,7 @@ class PdfCompressView(BaseCompressView):
 
             output_filename = f'compressed_pdf_{uploaded_file.name.replace(" ", "_")}' 
             logger.info(f"output_filename: {output_filename}")
-            output_filepath = os.path.join("https://compresstest.pythonanywhere.com/media", output_filename)
+            output_filepath = os.path.join(settings.MEDIA_ROOT, output_filename)
             logger.info(f"output_filepath: {output_filepath}")
 
             try:
@@ -109,7 +109,9 @@ class PdfCompressView(BaseCompressView):
                     os.remove(output_filepath)
                     return Response({'error': "Compression did not reduce file size."}, status=status.HTTP_400_BAD_REQUEST)
                 base_url = request.build_absolute_uri('/').rstrip('/')
+                logger.info({"base_url": base_url})
                 full_pdf_url = base_url + settings.MEDIA_URL + output_filename
+                logger.info({"full_pdf_url": full_pdf_url})
 
                 return Response({'compressed_pdf': full_pdf_url, "file_name": file_name, "file_type": file_type}, status=status.HTTP_200_OK)
             except Exception as e:
