@@ -10,6 +10,7 @@ from docx import Document
 from docx2txt import process as extract_text
 import zipfile
 import ffmpeg 
+import ghostscript
 import io
 import platform
 import tempfile 
@@ -85,6 +86,7 @@ class PdfCompressView(BaseCompressView):
                 error_msg = result.stderr.decode('utf-8')
                 logger.error(f"error_msg: {error_msg}")
                 raise Exception(f'Error compressing PDF: {error_msg}')
+            traceback.print_exc()
         except Exception as e:
             logger.exception(f'Error compressing PDF: {str(e)}')
             raise e
@@ -105,10 +107,10 @@ class PdfCompressView(BaseCompressView):
             logger.info(f"output_filename: {output_filename}")
             output_filepath = os.path.join(settings.MEDIA_ROOT, output_filename)
             logger.info(f"output_filepath: {output_filepath}")
-
+            traceback.print_exc()
             try:
                 self.compress_pdf(input_filepath, output_filepath)
-                
+                traceback.print_exc()
                 original_size = os.path.getsize(input_filepath)
                 compressed_size = os.path.getsize(output_filepath)
                 if compressed_size >= original_size:
@@ -116,6 +118,7 @@ class PdfCompressView(BaseCompressView):
                     return Response({'error': "Compression did not reduce file size."}, status=status.HTTP_400_BAD_REQUEST)
                 base_url = request.build_absolute_uri('/').rstrip('/')
                 logger.info({"base_url": base_url})
+                
                 full_pdf_url = base_url + settings.MEDIA_URL + output_filename
                 logger.info({"full_pdf_url": full_pdf_url})
 
