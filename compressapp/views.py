@@ -72,7 +72,7 @@ class PdfCompressView(BaseCompressView):
     def compress_pdf(self, input_path, output_path):
         system = platform.system()
         if system == 'Windows':
-            gs_cmd = "C:\\Program Files\\gs\\gs10.03.0\\bin\\gswin64c.exe"  
+            gs_cmd = "C:\\gs\\gs10.03.0\\bin\\gswin64c.exe"  
         else:
             gs_cmd = 'gs'
         command = [gs_cmd, '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4', '-dPDFSETTINGS=/screen',
@@ -103,7 +103,7 @@ class PdfCompressView(BaseCompressView):
 
             try:
                 self.compress_pdf(input_filepath, output_filepath)
-                traceback.print_exc()
+                
                 original_size = os.path.getsize(input_filepath)
                 compressed_size = os.path.getsize(output_filepath)
                 if compressed_size >= original_size:
