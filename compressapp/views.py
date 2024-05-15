@@ -113,7 +113,7 @@ class PdfCompressView(BaseCompressView):
 
                 return Response({'compressed_pdf': full_pdf_url, "file_name": file_name, "file_type": file_type}, status=status.HTTP_200_OK)
             except Exception as e:
-                logger.exception({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                logger.exception({'error': str(e)})
                 return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             finally:
                 os.unlink(input_filepath)
