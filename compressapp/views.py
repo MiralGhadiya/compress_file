@@ -72,20 +72,19 @@ class PdfCompressView(BaseCompressView):
     def compress_pdf(self, input_path, output_path):
         system = platform.system()
         if system == 'Windows':
-            gs_cmd = "C:\\Program Files\\gs\\gs10.03.0\\bin\\gswin64c.exe"
+            gs_cmd = "C:\\Program Files\\gs\\gs10.03.0\\bin\\gswin64c.exe"  
         else:
             gs_cmd = 'gs'
         command = [gs_cmd, '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4', '-dPDFSETTINGS=/screen',
                    '-dNOPAUSE', '-dQUIET', '-dBATCH', f'-sOutputFile={output_path}', input_path]
-        # logger.error(f"command: {command}")
-        print(command,"///////////////////////////////////////////////////////////////////////")
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         logger.info(f"Ghostscript command executed with return code: {result.returncode}")
         if result.returncode != 0:
             error_msg = result.stderr.decode('utf-8')
-            print(error_msg,"********************************************************************************")
             logger.info(f"Error compressing PDF: {error_msg}")
-            traceback.print_exc()
+            raise Exception(f'Error compressing PDF: {error_msg}')
+        # No need for the else block here
+
     def post(self, request, format=None):
         serializer = PdfUploadSerializer(data=request.data)
         if serializer.is_valid():
@@ -96,10 +95,12 @@ class PdfCompressView(BaseCompressView):
                 for chunk in uploaded_file.chunks():
                     temp_pdf.write(chunk)
                 input_filepath = temp_pdf.name
-            output_filename = f'compressed_pdf_{uploaded_file.name.replace(" ", "_")}'
+
+            output_filename = f'compressed_pdf_{uploaded_file.name.replace(" ", "_")}' 
             logger.info(f"output_filename: {output_filename}")
             output_filepath = os.path.join(settings.MEDIA_ROOT, output_filename)
             logger.info(f"output_filepath: {output_filepath}")
+
             try:
                 self.compress_pdf(input_filepath, output_filepath)
                 original_size = os.path.getsize(input_filepath)
@@ -108,15 +109,12 @@ class PdfCompressView(BaseCompressView):
                     os.remove(output_filepath)
                     return Response({'error': "Compression did not reduce file size."}, status=status.HTTP_400_BAD_REQUEST)
                 base_url = request.build_absolute_uri('/').rstrip('/')
-                print(base_url,"7888888888888888888888888888888888888888888888888888888888888888888888888888888888888888")
-                logger.info(f"Error compressing PDF: {base_url}")
                 full_pdf_url = base_url + settings.MEDIA_URL + output_filename
-                logger.info(f"Error compressing PDF: {full_pdf_url}")
-                print(full_pdf_url,"9899999999999999999999999999999999999999999999999999999999999999999999999999999")
+
                 return Response({'compressed_pdf': full_pdf_url, "file_name": file_name, "file_type": file_type}, status=status.HTTP_200_OK)
             except Exception as e:
-                # logger.exception("An error occurred during PDF compression.")
-                return JsonResponse({'error': 'An error occurred during PDF compression.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                logger.exception({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             finally:
                 os.unlink(input_filepath)
         else:
@@ -245,6 +243,7 @@ class VideoCompressView(BaseCompressView):
                 
                 return Response({'compressed_video': full_video_url,"file_name":file_name,"file_type":file_type}, status=status.HTTP_200_OK)
             except Exception as e:
+                
                 return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             finally:
                 os.unlink(input_filepath)
