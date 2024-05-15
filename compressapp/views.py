@@ -7,19 +7,13 @@ from .serializers import ImageUploadSerializer,PdfUploadSerializer,DocxUploadSer
 from PIL import Image
 import os
 from docx import Document
-from docx2txt import process as extract_text
 import zipfile
-import ffmpeg 
-import ghostscript
 import io
 import platform
 import tempfile 
 import subprocess
 from django.conf import settings
-from django.utils.text import slugify
 import logging
-from django.shortcuts import render
-
 class BaseCompressView(APIView):
     def save_file(self, file_data, filename):
         media_directory = settings.MEDIA_ROOT
@@ -73,7 +67,7 @@ class PdfCompressView(BaseCompressView):
     def compress_pdf(self, input_path, output_path):
         system = platform.system()
         if system == 'Windows':
-            gs_cmd = "C:\\gs\\gs10.03.0\\bin\\gswin64c.exe"  
+            gs_cmd = "C:\\Program Files\\gs\\gs10.03.0\\bin\\gswin64c.exe"  
         else:
             gs_cmd = 'gs'
             
