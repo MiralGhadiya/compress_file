@@ -63,6 +63,7 @@ from django.http import JsonResponse
 logger = logging.getLogger(__name__)
 import traceback 
 
+
 class PdfCompressView(BaseCompressView):
     def compress_pdf(self, input_path, output_path):
         system = platform.system()
@@ -74,7 +75,8 @@ class PdfCompressView(BaseCompressView):
         command = [gs_cmd, '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4', '-dPDFSETTINGS=/screen',
                    '-dNOPAUSE', '-dQUIET', '-dBATCH', f'-sOutputFile={output_path}', input_path]
         try:
-            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            # result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            result = subprocess.run(command, capture_output=True, text=True)
             logger.info(f"Ghostscript command executed with return code: {result.returncode}")
             if result.returncode != 0:
                 error_msg = result.stderr.decode('utf-8')
