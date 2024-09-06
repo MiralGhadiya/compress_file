@@ -14,6 +14,11 @@ import tempfile
 import subprocess
 from django.conf import settings
 import logging
+from io import BytesIO
+from django.http import JsonResponse
+logger = logging.getLogger(__name__)
+import traceback 
+
 class BaseCompressView(APIView):
     def save_file(self, file_data, filename):
         media_directory = settings.MEDIA_ROOT
@@ -22,21 +27,33 @@ class BaseCompressView(APIView):
         with open(filepath, 'wb') as f:
             f.write(file_data)
         return os.path.join(settings.MEDIA_URL, filename)
+
 class ImageCompressView(BaseCompressView):
-    def compress_image(self, uploaded_image):
+    def compress_image(self, uploaded_image, image_size_kb):
         with Image.open(uploaded_image) as image:
-            max_size = (800, 800)
-            image.thumbnail(max_size, Image.LANCZOS)
+
             if image.mode == 'RGBA':
                 background = Image.new("RGBA", image.size, (255, 255, 255, 0))
                 background.paste(image, (0, 0), image)
                 image = background
+
+            # Convert image to RGB if it's not in RGB or RGBA mode
             if image.mode not in ['RGB', 'RGBA']:
                 image = image.convert('RGB')
 
             output = io.BytesIO()
+
+            # Choose format based on image mode
             format = 'PNG' if image.mode == 'RGBA' else 'JPEG'
-            image.save(output, format=format, quality=85)
+
+            if image_size_kb < 1000:
+                quality = 75
+            else:
+                quality = 85 
+
+            # Compress the image and save it to output
+            image.save(output, format=format, optimize=True, quality=quality)
+
             return output.getvalue()
 
     def post(self, request, format=None):
@@ -46,36 +63,68 @@ class ImageCompressView(BaseCompressView):
             file_name = uploaded_image.name
             file_type = uploaded_image.content_type
 
-            compressed_image_data = self.compress_image(uploaded_image)
-            compressed_image_path = self.save_file(compressed_image_data, f'compressed_image_{uploaded_image.name}')
-            base_url = request.build_absolute_uri('/').rstrip('/') 
+            # Check the size of the uploaded image in kilobytes (KB)
+            uploaded_image.seek(0, io.SEEK_END)
+            image_size_kb = uploaded_image.tell() / 1024
+            uploaded_image.seek(0)
+
+            compressed_image_data = self.compress_image(uploaded_image, image_size_kb)
+
+            compressed_size_kb = len(compressed_image_data) / 1024
+
+            if compressed_size_kb >= image_size_kb:
+                return Response({
+                    'message': 'Compression is not effective for this image as the compressed size is larger than the original size.',
+                    'file_name': file_name,
+                    'file_type': file_type,
+                    'original_size_kb': image_size_kb,
+                    'compressed_size_kb': compressed_size_kb
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            compressed_image_path = self.save_file(compressed_image_data, f'compressed_image_{file_name}')
+            # base_url = request.build_absolute_uri('/').rstrip('/')
+            base_url="https://api.compressvideo.in"
             full_image_url = base_url + compressed_image_path
-            # Return response with compressed PDF URL, file name, and file type
+
             return Response({
                 'compressed_image': full_image_url,
                 'file_name': file_name,
                 'file_type': file_type,
+                'original_size_kb': image_size_kb,
+                'compressed_size_kb': compressed_size_kb
             }, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-from django.http import JsonResponse
-logger = logging.getLogger(__name__)
-import traceback 
-
 
 class PdfCompressView(BaseCompressView):
     def compress_pdf(self, input_path, output_path):
         system = platform.system()
         if system == 'Windows':
-            gs_cmd = "C:\\Program Files\\gs\\gs10.03.0\\bin\\gswin64c.exe"  
+            gs_cmd = "C:\\Program Files\\gs\\gs10.03.1\\bin\\gswin64c.exe"  
         else:
             gs_cmd = 'gs'
+        command = [
+            gs_cmd,
+            '-q', 
+            '-dNOPAUSE', 
+            '-dBATCH', 
+            '-dSAFER',  
+            '-sDEVICE=pdfwrite',
+            '-dCompatibilityLevel=1.3',  
+            '-dPDFSETTINGS=/screen',  
+            '-dEmbedAllFonts=true',  
+            '-dSubsetFonts=true',  
+            '-dColorImageDownsampleType=/Bicubic',  
+            '-dColorImageResolution=146',  
+            '-dGrayImageDownsampleType=/Bicubic',  
+            '-dGrayImageResolution=146',  
+            '-dMonoImageDownsampleType=/Bicubic', 
+            '-dMonoImageResolution=146', 
+            f'-sOutputFile={output_path}',
+            input_path
+        ]
             
-        command = [gs_cmd, '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4', '-dPDFSETTINGS=/screen',
-                   '-dNOPAUSE', '-dQUIET', '-dBATCH', f'-sOutputFile={output_path}', input_path]
         try:
-            # result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             result = subprocess.run(command, capture_output=True, text=True)
             logger.info(f"Ghostscript command executed with return code: {result.returncode}")
             if result.returncode != 0:
@@ -107,12 +156,16 @@ class PdfCompressView(BaseCompressView):
             try:
                 self.compress_pdf(input_filepath, output_filepath)
                 traceback.print_exc()
+
                 original_size = os.path.getsize(input_filepath)
                 compressed_size = os.path.getsize(output_filepath)
+
                 if compressed_size >= original_size:
                     os.remove(output_filepath)
-                    return Response({'error': "Compression did not reduce file size."}, status=status.HTTP_400_BAD_REQUEST)
-                base_url = request.build_absolute_uri('/').rstrip('/')
+                    return Response({'error': "Compression is not effective for this pdf as the compressed size is larger than the original size."}, status=status.HTTP_400_BAD_REQUEST)
+                
+                # base_url = request.build_absolute_uri('/').rstrip('/')
+                base_url = "https://api.compressvideo.in"
                 logger.info({"base_url": base_url})
                 
                 full_pdf_url = base_url + settings.MEDIA_URL + output_filename
@@ -126,90 +179,92 @@ class PdfCompressView(BaseCompressView):
                 os.unlink(input_filepath)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-class DocxCompressView(BaseCompressView):
-    def convert_docx_to_pdf(self, docx_path):
-        platform_system = platform.system()
-        if platform_system == 'Windows':
-            run(['start', '/wait', 'soffice', '--headless', '--convert-to', 'pdf', docx_path], shell=True)
-        elif platform_system == 'Linux':
-            run(['libreoffice', '--headless', '--convert-to', 'pdf', docx_path])
-        else:
-            raise Exception("Unsupported platform for DOCX to PDF conversion")
-        
-    def compress_docx(self, docx_path):
-        try:
-            doc = Document(docx_path)
-            doc.save(f'{docx_path}.compressed.docx')
-            os.remove(docx_path)
-            os.rename(f'{docx_path}.compressed.docx', docx_path)
-        except Exception as e:
-            raise Exception(f"Error compressing DOCX: {e}")
-    
-    def compress_odt(self, odt_path):
-        try:
-            with zipfile.ZipFile(odt_path, 'r') as odt_zip:
-                with zipfile.ZipFile(f'{odt_path}.compressed.odt', 'w') as compressed_odt:
-                    for item in odt_zip.infolist():
-                        if item.filename not in ['mimetype', 'settings.xml']:
-                            data = odt_zip.read(item.filename)
-                            compressed_odt.writestr(item, data, compress_type=zipfile.ZIP_DEFLATED)
-            os.remove(odt_path)
-            os.rename(f'{odt_path}.compressed.odt', odt_path)
-        except Exception as e:
-            raise Exception(f"Error compressing ODT: {e}")
-        
-    def compress_doc(self, doc_path):
-        try:
-            with zipfile.ZipFile(doc_path, 'r') as doc_zip:
-                with zipfile.ZipFile(f'{doc_path}.compressed.doc', 'w') as compressed_doc:
-                    for item in doc_zip.infolist():
-                        data = doc_zip.read(item.filename)
-                        compressed_doc.writestr(item, data, compress_type=zipfile.ZIP_DEFLATED)
-            os.remove(doc_path)
-            os.rename(f'{doc_path}.compressed.doc', doc_path)
-        except Exception as e:
-            raise Exception(f"Error compressing DOC: {e}")
+
+class DocxCompressView(APIView):
+    def compress_images(self, temp_dir):
+        media_folder = os.path.join(temp_dir, 'word', 'media')
+        if os.path.exists(media_folder):
+            for filename in os.listdir(media_folder):
+                file_path = os.path.join(media_folder, filename)
+                if filename.endswith(('png', 'jpeg', 'jpg')):
+                    with Image.open(file_path) as img:
+                        img_io = BytesIO()
+                        img.save(img_io, format=img.format, quality=60)  # Adjust quality as needed
+                        img_io.seek(0)
+                        
+                        with open(file_path, 'wb') as f:
+                            f.write(img_io.read())
+
+    def compress_docx(self, input_path, output_path):
+
+        with zipfile.ZipFile(input_path, 'r') as zip_ref:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                zip_ref.extractall(temp_dir)
+                self.compress_images(temp_dir)
+
+                # Recompress the contents into a new .docx (zip) file
+                with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as compressed_zip:
+                    for foldername, subfolders, filenames in os.walk(temp_dir):
+                        for filename in filenames:
+                            file_path = os.path.join(foldername, filename)
+                            arcname = os.path.relpath(file_path, temp_dir)  # Keep relative paths in the zip
+                            compressed_zip.write(file_path, arcname)
+
+    def compress_doc(self, input_path, output_path):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_doc_path = os.path.join(temp_dir, os.path.basename(input_path))
+            with open(input_path, 'rb') as src_file:
+                with open(temp_doc_path, 'wb') as dest_file:
+                    dest_file.write(src_file.read())
+            
+            # Create a new ZIP file containing the .doc file
+            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                zipf.write(temp_doc_path, os.path.basename(input_path))
+
+
     def post(self, request, format=None):
         serializer = DocxUploadSerializer(data=request.data)
         if serializer.is_valid():
             uploaded_file = serializer.validated_data['file']
             file_name = uploaded_file.name
-            file_type = uploaded_file.content_type
-            file_extension = os.path.splitext(uploaded_file.name)[1].lower()
-            temp_file_path = 'temp_file'
 
-            with open(temp_file_path, 'wb') as temp_file:
+            with tempfile.NamedTemporaryFile(delete=False) as temp_doc:
                 for chunk in uploaded_file.chunks():
-                    temp_file.write(chunk)
+                    temp_doc.write(chunk)
+                input_filepath = temp_doc.name
 
-            if file_extension == '.docx':
-                try:
-                    self.convert_docx_to_pdf(temp_file_path)
-                except Exception as e:
-                    os.remove(temp_file_path)  
-                    return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                self.compress_docx(temp_file_path)
-            elif file_extension == '.odt':
-                try:
-                    self.compress_odt(temp_file_path)
-                except Exception as e:
-                    os.remove(temp_file_path) 
-                    return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            elif file_extension == '.doc':
-                try:
-                    self.compress_doc(temp_file_path)
-                except Exception as e:
-                    os.remove(temp_file_path)  
-                    return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            else:
-                os.remove(temp_file_path)  
-                return Response({'error': 'Unsupported file format'}, status=status.HTTP_400_BAD_REQUEST)
+            if file_name.endswith('.docx') and uploaded_file.size < 247808:  # 242 KB = 242 * 1024 bytes
+                return Response({
+                    'error': "Compression is not effective for this docx as the compressed size is larger than the original size."
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-            compressed_docx_path = self.save_file(open(temp_file_path, 'rb').read(), f'compressed_{uploaded_file.name}')
-            os.remove(temp_file_path)  
-            base_url = request.build_absolute_uri('/').rstrip('/')
-            full_docx_url = base_url + compressed_docx_path
-            return Response({'compressed_docx': full_docx_url,"file_name":file_name,"file_type":file_type}, status=status.HTTP_200_OK)
+            output_filename = f'compressed_{uploaded_file.name.replace(" ", "_")}'
+            output_filepath = os.path.join(settings.MEDIA_ROOT, output_filename)
+
+            try:
+                if file_name.endswith('.docx'):
+                    self.compress_docx(input_filepath, output_filepath)
+                elif file_name.endswith('.doc'):
+                    self.compress_doc(input_filepath, output_filepath)
+
+                original_size = os.path.getsize(input_filepath)
+                compressed_size = os.path.getsize(output_filepath)
+
+                if compressed_size >= original_size:
+                    os.remove(output_filepath)
+                    return Response({'error': "Compression is not effective for this docx or doc as the compressed size is larger than the original size."}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Dynamically generate the full document URL
+                # base_url = request.build_absolute_uri('/').rstrip('/')
+                base_url = "https://api.compressvideo.in"
+                full_doc_url = base_url + settings.MEDIA_URL + output_filename
+
+                return Response({'compressed_doc': full_doc_url, "file_name": file_name, "file_type": uploaded_file.content_type}, status=status.HTTP_200_OK)
+
+            except Exception as e:
+                return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            finally:
+                os.unlink(input_filepath)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -220,7 +275,7 @@ class VideoCompressView(BaseCompressView):
             ffmpeg_cmd = 'C:\\ffmpeg\\bin\\ffmpeg.exe'
         else:
             ffmpeg_cmd = 'ffmpeg'
-        subprocess.run([ffmpeg_cmd, '-i', input_path, '-crf', str(crf), output_path])
+        subprocess.run([ffmpeg_cmd, '-i', input_path, '-crf', str(crf), '-y', output_path])
 
     def post(self, request, format=None):
         serializer = VideoUploadSerializer(data=request.data)
@@ -232,6 +287,12 @@ class VideoCompressView(BaseCompressView):
                 for chunk in uploaded_video.chunks():
                     temp_video.write(chunk)
                 input_filepath = temp_video.name
+
+            if uploaded_video.size < 132096:
+                return Response({
+                    'error': "Compression is not effective for this video as the compressed size is larger than the original size."
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
             output_filename = f'compressed_{uploaded_video.name.replace(" ", "_")}'
             output_filepath = os.path.join(settings.MEDIA_ROOT, output_filename)
             try:
@@ -242,10 +303,10 @@ class VideoCompressView(BaseCompressView):
                 if compressed_size >= original_size:
                     # If the compressed file size is not smaller, delete the compressed file
                     os.remove(output_filepath)
-                    return Response({'error': "Compression did not reduce file size."}, status=status.HTTP_400_BAD_REQUEST)
-                
+                    return Response({'error': "Compression is not effective for this video as the compressed size is larger than the original size."}, status=status.HTTP_400_BAD_REQUEST)
                 # Dynamically generate the full video URL
-                base_url = request.build_absolute_uri('/').rstrip('/')
+                # base_url = request.build_absolute_uri('/').rstrip('/')
+                base_url = "https://api.compressvideo.in"
                 full_video_url = base_url + settings.MEDIA_URL + output_filename
                 
                 return Response({'compressed_video': full_video_url,"file_name":file_name,"file_type":file_type}, status=status.HTTP_200_OK)

@@ -28,9 +28,9 @@ class DocxUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
 
     def validate_file(self, value):
-        valid_extensions = ['doc', 'docx', 'odt']
+        valid_extensions = ['doc', 'docx']
         if value.name.split('.')[-1].lower() not in valid_extensions:
-            raise serializers.ValidationError("Only .doc, .docx, .odt files are allowed.")
+            raise serializers.ValidationError("Only .doc, .docx files are allowed.")
         return value
 class VideoUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
