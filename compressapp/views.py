@@ -71,14 +71,10 @@ class ImageCompressView(BaseCompressView):
             compressed_image_data = self.compress_image(uploaded_image, image_size_kb)
 
             compressed_size_kb = len(compressed_image_data) / 1024
-
             if compressed_size_kb >= image_size_kb:
+
                 return Response({
-                    'message': 'Compression is not effective for this image as the compressed size is larger than the original size.',
-                    'file_name': file_name,
-                    'file_type': file_type,
-                    'original_size_kb': image_size_kb,
-                    'compressed_size_kb': compressed_size_kb
+                    'message': 'Sorry, Your Image is already very well compressed.',
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             compressed_image_path = self.save_file(compressed_image_data, f'compressed_image_{file_name}')
@@ -110,16 +106,17 @@ class PdfCompressView(BaseCompressView):
             '-dBATCH', 
             '-dSAFER',  
             '-sDEVICE=pdfwrite',
-            '-dCompatibilityLevel=1.3',  
-            '-dPDFSETTINGS=/screen',  
+            '-dCompatibilityLevel=1.4',
+            '-dPDFSETTINGS=/ebook',
             '-dEmbedAllFonts=true',  
             '-dSubsetFonts=true',  
-            '-dColorImageDownsampleType=/Bicubic',  
-            '-dColorImageResolution=146',  
+            '-dCompressFonts=true',
+            '-dColorImageDownsampleType=/Bicubic',
+            '-dColorImageResolution=150',
             '-dGrayImageDownsampleType=/Bicubic',  
-            '-dGrayImageResolution=146',  
+            '-dGrayImageResolution=150',  
             '-dMonoImageDownsampleType=/Bicubic', 
-            '-dMonoImageResolution=146', 
+            '-dMonoImageResolution=150', 
             f'-sOutputFile={output_path}',
             input_path
         ]
@@ -161,9 +158,11 @@ class PdfCompressView(BaseCompressView):
                 compressed_size = os.path.getsize(output_filepath)
 
                 if compressed_size >= original_size:
-                    os.remove(output_filepath)
-                    return Response({'error': "Compression is not effective for this pdf as the compressed size is larger than the original size."}, status=status.HTTP_400_BAD_REQUEST)
-                
+                    os.remove(output_filepath)  # Remove the ineffective compressed file
+                    return Response({
+                        'message': "Sorry, Your PDF file is already very well compressed."
+                    }, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
                 # base_url = request.build_absolute_uri('/').rstrip('/')
                 base_url = "https://api.compressvideo.in"
                 logger.info({"base_url": base_url})
@@ -189,7 +188,7 @@ class DocxCompressView(APIView):
                 if filename.endswith(('png', 'jpeg', 'jpg')):
                     with Image.open(file_path) as img:
                         img_io = BytesIO()
-                        img.save(img_io, format=img.format, quality=60)  # Adjust quality as needed
+                        img.save(img_io, format=img.format, quality=60)  
                         img_io.seek(0)
                         
                         with open(file_path, 'wb') as f:
@@ -207,7 +206,7 @@ class DocxCompressView(APIView):
                     for foldername, subfolders, filenames in os.walk(temp_dir):
                         for filename in filenames:
                             file_path = os.path.join(foldername, filename)
-                            arcname = os.path.relpath(file_path, temp_dir)  # Keep relative paths in the zip
+                            arcname = os.path.relpath(file_path, temp_dir)  
                             compressed_zip.write(file_path, arcname)
 
     def compress_doc(self, input_path, output_path):
@@ -233,9 +232,9 @@ class DocxCompressView(APIView):
                     temp_doc.write(chunk)
                 input_filepath = temp_doc.name
 
-            if file_name.endswith('.docx') and uploaded_file.size < 247808:  # 242 KB = 242 * 1024 bytes
+            if file_name.endswith('.docx') and uploaded_file.size < 247808: 
                 return Response({
-                    'error': "Compression is not effective for this docx as the compressed size is larger than the original size."
+                    'message': "Sorry, Your Docx file is already very well compressed."
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             output_filename = f'compressed_{uploaded_file.name.replace(" ", "_")}'
@@ -252,9 +251,7 @@ class DocxCompressView(APIView):
 
                 if compressed_size >= original_size:
                     os.remove(output_filepath)
-                    return Response({'error': "Compression is not effective for this docx or doc as the compressed size is larger than the original size."}, status=status.HTTP_400_BAD_REQUEST)
-
-                # Dynamically generate the full document URL
+                    return Response({'message': "Sorry, Your Doc or Docx file is already very well compressed."}, status=status.HTTP_400_BAD_REQUEST)
                 # base_url = request.build_absolute_uri('/').rstrip('/')
                 base_url = "https://api.compressvideo.in"
                 full_doc_url = base_url + settings.MEDIA_URL + output_filename
@@ -290,21 +287,19 @@ class VideoCompressView(BaseCompressView):
 
             if uploaded_video.size < 132096:
                 return Response({
-                    'error': "Compression is not effective for this video as the compressed size is larger than the original size."
+                    'message': "Sorry, Your Video is already very well compressed."
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             output_filename = f'compressed_{uploaded_video.name.replace(" ", "_")}'
             output_filepath = os.path.join(settings.MEDIA_ROOT, output_filename)
             try:
                 self.compress_video(input_filepath, output_filepath)
-                # Check if compressed file size is smaller than original file size
                 original_size = os.path.getsize(input_filepath)
                 compressed_size = os.path.getsize(output_filepath)
                 if compressed_size >= original_size:
-                    # If the compressed file size is not smaller, delete the compressed file
                     os.remove(output_filepath)
-                    return Response({'error': "Compression is not effective for this video as the compressed size is larger than the original size."}, status=status.HTTP_400_BAD_REQUEST)
-                # Dynamically generate the full video URL
+                    return Response({'message': "Sorry, Your Video is already very well compressed."}, status=status.HTTP_400_BAD_REQUEST)
+
                 # base_url = request.build_absolute_uri('/').rstrip('/')
                 base_url = "https://api.compressvideo.in"
                 full_video_url = base_url + settings.MEDIA_URL + output_filename
